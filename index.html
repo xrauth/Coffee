@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Flashcards</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #eceff1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    gap: 2vh;
+  }
+
+  .stack {
+    position: relative;
+    width: 30vh;
+    height: 35vh;
+    max-width: 85vw;
+    max-height: 99vw;
+    min-width: 280px;
+    min-height: 320px;
+    perspective: 1200px;
+  }
+  .flipper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    outline: none;
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(.4,0,.2,1);
+  }
+  .flipper.flipped {
+    transform: rotateY(180deg);
+  }
+  .card {
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+    border-radius: 4vh;
+    box-shadow: 0 1.5vh 4vh rgba(0,0,0,0.12);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4.5vh 4vh;
+    box-sizing: border-box;
+    text-align: center;
+    backface-visibility: hidden;
+    transition: box-shadow 0.3s ease;
+  }
+  .card.back {
+    transform: rotateY(180deg);
+  }
+  .card.feedback-correct {
+    box-shadow: 0 0 0 4px #4caf50, 0 1.5vh 4vh rgba(0,0,0,0.12);
+  }
+  .card.feedback-wrong {
+    box-shadow: 0 0 0 4px #e05555, 0 1.5vh 4vh rgba(0,0,0,0.12);
+  }
+
+  .word {
+    font-size: clamp(28px, 6.5vmin, 56px);
+    font-weight: 700;
+    color: #1a1a1a;
+    line-height: 1.05;
+    margin-bottom: 1.5vh;
+    word-break: break-word;
+    max-width: 100%;
+  }
+  .word.hidden-text {
+    color: #cfd3d6;
+    letter-spacing: 2px;
+  }
+  .translation {
+    font-size: clamp(14px, 2.4vmin, 22px);
+    color: #9aa0a6;
+    margin-bottom: 3vh;
+  }
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: #e6e6e6;
+    margin-bottom: 3vh;
+  }
+  .sentence {
+    font-size: clamp(12px, 1.9vmin, 17px);
+    color: #1a1a1a;
+    margin-bottom: 1.2vh;
+    line-height: 1.4;
+  }
+  .sentence-translation {
+    font-size: clamp(10px, 1.6vmin, 14px);
+    color: #9aa0a6;
+    line-height: 1.4;
+  }
+
+  /* Botões */
+  .buttons {
+    width: 30vh;
+    max-width: 85vw;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.2vh;
+  }
+  .buttons.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1.2vh;
+  }
+  .btn {
+    border: none;
+    border-radius: 1.6vh;
+    padding: 1.8vh 1.2vh;
+    font-size: clamp(13px, 2vmin, 18px);
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease, filter 0.15s ease, background 0.2s ease;
+    box-shadow: 0 0.6vh 1.6vh rgba(0,0,0,0.08);
+  }
+  .btn:active {
+    transform: scale(0.96);
+  }
+  .btn-know {
+    background: #2e7d32;
+    color: #ffffff;
+  }
+  .btn-dontknow {
+    background: #c0392b;
+    color: #ffffff;
+  }
+  .btn-option {
+    background: #ffffff;
+    color: #1a1a1a;
+  }
+  .btn:disabled {
+    cursor: default;
+  }
+  .btn-option.correct {
+    background: #4caf50;
+    color: #ffffff;
+  }
+  .btn-option.wrong {
+    background: #e05555;
+    color: #ffffff;
+  }
+  .btn-option.dim {
+    opacity: 0.45;
+  }
+</style>
+</head>
+<body>
+
+<div class="stack">
+  <div class="flipper" id="flipper">
+    <div class="card front" id="cardFront"></div>
+    <div class="card back" id="cardBack"></div>
+  </div>
+</div>
+
+<div class="buttons" id="buttons"></div>
+
+<script>
+  const cards = [
+    { word: "Forest", translation: "Floresta", sentence: "They went for a walk in the forest.", sentenceTranslation: "Eles foram dar um passeio na floresta." },
+    { word: "Library", translation: "Biblioteca", sentence: "I spent the entire afternoon at the library.", sentenceTranslation: "Eu passei a tarde inteira na biblioteca." },
+    { word: "Sunrise", translation: "Nascer do sol", sentence: "We woke up early to watch the sunrise.", sentenceTranslation: "Nós acordamos cedo para ver o nascer do sol." },
+    { word: "Mountain", translation: "Montanha", sentence: "The snow on top of the mountain is melting.", sentenceTranslation: "A neve no topo da montanha está derretendo." },
+    { word: "Garden", translation: "Jardim", sentence: "She plants colorful flowers in her garden.", sentenceTranslation: "Ela planta flores coloridas em seu jardim." },
+    { word: "Shadow", translation: "Sombra", sentence: "The tree cast a long shadow across the yard.", sentenceTranslation: "A árvore projetou uma longa sombra pelo quintal." },
+    { word: "Window", translation: "Janela", sentence: "He opened the window to let fresh air in.", sentenceTranslation: "Ele abriu a janela para deixar entrar ar fresco." },
+    { word: "Harbor", translation: "Porto", sentence: "Several ships are anchored in the harbor.", sentenceTranslation: "Vários navios estão ancorados no porto." },
+    { word: "Whistle", translation: "Apito", sentence: "The referee blew the whistle to start the game.", sentenceTranslation: "O árbitro apitou para começar o jogo." },
+    { word: "Blanket", translation: "Cobertor", sentence: "I wrapped myself in a warm blanket.", sentenceTranslation: "Eu me embrulhei em um cobertor quente." },
+    { word: "Feather", translation: "Pena", sentence: "The bird dropped a soft feather on the ground.", sentenceTranslation: "O pássaro deixou cair uma pena macia no chão." },
+    { word: "Thunder", translation: "Trovão", sentence: "We heard the loud sound of thunder in the distance.", sentenceTranslation: "Nós ouvimos o som alto do trovão ao longe." },
+    { word: "Market", translation: "Mercado", sentence: "They buy fresh fruit at the local market every Sunday.", sentenceTranslation: "Eles compram frutas frescas no mercado local todo domingo." },
+    { word: "Candle", translation: "Vela", sentence: "She lit a candle when the power went out.", sentenceTranslation: "Ela acendeu uma vela quando a energia acabou." },
+    { word: "Pathway", translation: "Caminho", sentence: "A narrow pathway leads to the beach.", sentenceTranslation: "Um caminho estreito leva à praia." },
+    { word: "Mirror", translation: "Espelho", sentence: "He looked at himself in the mirror before leaving.", sentenceTranslation: "Ele se olhou no espelho antes de sair." },
+    { word: "Whisper", translation: "Sussurro", sentence: "She spoke in a low whisper so no one would hear.", sentenceTranslation: "Ela falou em um sussurro baixo para que ninguém ouvisse." },
+    { word: "Valley", translation: "Vale", sentence: "The small village is located in a quiet valley.", sentenceTranslation: "A pequena vila está localizada em um vale tranquilo." },
+    { word: "Breeze", translation: "Brisa", sentence: "A cool breeze swept through the open room.", sentenceTranslation: "Uma brisa fresca passou pelo quarto aberto." },
+    { word: "Backpack", translation: "Mochila", sentence: "He packed his notebook and water bottle in his backpack.", sentenceTranslation: "Ele guardou seu caderno e garrafa de água na mochila." },
+    { word: "Treasure", translation: "Tesouro", sentence: "The old map shows where the treasure is buried.", sentenceTranslation: "O mapa antigo mostra onde o tesouro está enterrado." },
+    { word: "Compass", translation: "Bússola", sentence: "They used a compass to find their way through the woods.", sentenceTranslation: "Eles usaram uma bússola para achar o caminho através da mata." },
+    { word: "Lighthouse", translation: "Farol", sentence: "The lighthouse guided the ships safely to shore.", sentenceTranslation: "O farol guiou os navios com segurança para a costa." },
+    { word: "Raindrop", translation: "Gota de chuva", sentence: "A single raindrop fell on her cheek.", sentenceTranslation: "Uma única gota de chuva caiu na bochecha dela." },
+    { word: "Sculpture", translation: "Escultura", sentence: "The museum features a large stone sculpture in the hall.", sentenceTranslation: "O museu apresenta uma grande escultura de pedra no saguão." },
+    { word: "Horizon", translation: "Horizonte", sentence: "The sun slowly disappeared below the horizon.", sentenceTranslation: "O sol desapareceu lentamente abaixo do horizonte." },
+    { word: "Harvest", translation: "Colheita", sentence: "Farmers prepare for the annual wheat harvest in autumn.", sentenceTranslation: "Os agricultores se preparam para a colheita anual de trigo no outono." }
+  ];
+
+  // Gera a versão da frase com a palavra substituída por um blank (case-insensitive, primeira ocorrência)
+  function makeBlank(sentence, word) {
+    const blank = "_".repeat(Math.max(word.length, 4));
+    const re = new RegExp(word, "i");
+    return sentence.replace(re, blank);
+  }
+  cards.forEach(c => { c.sentenceBlank = makeBlank(c.sentence, c.word); });
+
+  // Marca cada palavra como nunca vista; usaremos isso para decidir o modo do card
+  cards.forEach(c => { c.seen = false; });
+
+  // A fila de agendamento: array de índices para o array `cards`.
+  // Começa na ordem natural.
+  let queue = cards.map((_, i) => i);
+
+  const flipper = document.getElementById("flipper");
+  const cardFront = document.getElementById("cardFront");
+  const cardBack = document.getElementById("cardBack");
+  const buttonsEl = document.getElementById("buttons");
+
+  let currentFace = cardFront; // face atualmente visível
+  let hiddenFace = cardBack;   // face escondida (será preparada com o próximo item)
+  let isFlipped = false;
+  let locked = false; // trava input enquanto anima/aguarda feedback
+
+  const NEAR_MIN = 2, NEAR_MAX = 3;   // reinserção próxima (não sabia / errou)
+  const FAR_MIN = 8, FAR_MAX = 10;    // reinserção distante (sabia / acertou)
+
+  function randBetween(a, b) {
+    return a + Math.floor(Math.random() * (b - a + 1));
+  }
+
+  function reschedule(cardIdx, isFar) {
+    // remove todas ocorrências futuras óbvias não é necessário; apenas insere nova posição
+    const offset = isFar ? randBetween(FAR_MIN, FAR_MAX) : randBetween(NEAR_MIN, NEAR_MAX);
+    const pos = Math.min(offset, queue.length); // insere dentro da fila atual
+    queue.splice(pos, 0, cardIdx);
+  }
+
+  function pullNext() {
+    if (queue.length === 0) {
+      queue = cards.map((_, i) => i);
+    }
+    return queue.shift();
+  }
+
+  function wordHTML(data, mode) {
+    // mode: 'reveal' (mostra tudo) ou 'quiz' (esconde palavra principal; frase mostra com blank)
+    const wordText = mode === 'quiz' ? '?????' : data.word;
+    const sentenceText = mode === 'quiz' ? data.sentenceBlank : data.sentence;
+    const wordClass = mode === 'quiz' ? 'word hidden-text' : 'word';
+    return `
+      <div class="${wordClass}" id="wordEl">${wordText}</div>
+      <div class="translation">${data.translation}</div>
+      <div class="divider"></div>
+      <div class="sentence" id="sentenceEl">${sentenceText}</div>
+      <div class="sentence-translation">${data.sentenceTranslation}</div>
+    `;
+  }
+
+  let currentIdx = null; // índice (em `cards`) da palavra atualmente exibida
+
+  function renderCurrent() {
+    const data = cards[currentIdx];
+    const mode = data.seen ? 'quiz' : 'reveal';
+    currentFace.innerHTML = wordHTML(data, mode);
+    currentFace.classList.remove('feedback-correct', 'feedback-wrong');
+    renderButtons(mode, data);
+  }
+
+  function renderButtons(mode, data) {
+    buttonsEl.innerHTML = '';
+    if (mode === 'reveal') {
+      buttonsEl.classList.remove('grid');
+      const knowBtn = document.createElement('button');
+      knowBtn.className = 'btn btn-know';
+      knowBtn.textContent = 'Conheço essa palavra';
+      knowBtn.onclick = () => handleSimpleAnswer(true);
+
+      const dontKnowBtn = document.createElement('button');
+      dontKnowBtn.className = 'btn btn-dontknow';
+      dontKnowBtn.textContent = 'Não conheço';
+      dontKnowBtn.onclick = () => handleSimpleAnswer(false);
+
+      buttonsEl.appendChild(knowBtn);
+      buttonsEl.appendChild(dontKnowBtn);
+    } else {
+      buttonsEl.classList.add('grid');
+      const options = buildOptions(currentIdx);
+      options.forEach(optIdx => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-option';
+        btn.textContent = cards[optIdx].word;
+        btn.dataset.word = cards[optIdx].word;
+        btn.onclick = () => handleQuizAnswer(optIdx, btn);
+        buttonsEl.appendChild(btn);
+      });
+    }
+  }
+
+  function buildOptions(correctIdx) {
+    const pool = cards.map((_, i) => i).filter(i => i !== correctIdx);
+    // embaralha e pega 3
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const wrongOptions = pool.slice(0, Math.min(3, pool.length));
+    const options = [correctIdx, ...wrongOptions];
+    for (let i = options.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    return options;
+  }
+
+  function handleSimpleAnswer(knew) {
+    if (locked) return;
+    locked = true;
+    cards[currentIdx].seen = true;
+    reschedule(currentIdx, knew);
+    disableButtons();
+    goToNext();
+  }
+
+  function typeReveal(el, fullText, durationMs) {
+    // anima a revelação progressiva de fullText dentro de el, preservando outros nós irmãos se houver
+    const steps = fullText.length;
+    if (steps === 0) { el.textContent = fullText; return; }
+    const stepTime = durationMs / steps;
+    let i = 0;
+    el.textContent = '';
+    const timer = setInterval(() => {
+      i++;
+      el.textContent = fullText.slice(0, i) + (i < steps ? '_'.repeat(steps - i) : '');
+      if (i >= steps) clearInterval(timer);
+    }, stepTime);
+  }
+
+  function handleQuizAnswer(chosenIdx, btnEl) {
+    if (locked) return;
+    locked = true;
+    const correct = chosenIdx === currentIdx;
+    const data = cards[currentIdx];
+
+    // feedback visual nos botões
+    const allBtns = Array.from(buttonsEl.querySelectorAll('.btn-option'));
+    allBtns.forEach(b => b.disabled = true);
+    btnEl.classList.add(correct ? 'correct' : 'wrong');
+    if (!correct) {
+      const correctBtn = allBtns.find(b => b.dataset.word === data.word);
+      if (correctBtn) correctBtn.classList.add('correct');
+      allBtns.forEach(b => { if (b !== btnEl && b.dataset.word !== data.word) b.classList.add('dim'); });
+    } else {
+      allBtns.forEach(b => { if (b !== btnEl) b.classList.add('dim'); });
+    }
+
+    // contorno de feedback no card
+    currentFace.classList.add(correct ? 'feedback-correct' : 'feedback-wrong');
+
+    // animação de digitação simultânea na palavra principal e na frase (revela o blank)
+    const wordEl = currentFace.querySelector('#wordEl');
+    const sentenceEl = currentFace.querySelector('#sentenceEl');
+    wordEl.classList.remove('hidden-text');
+    if (wordEl) typeReveal(wordEl, data.word, 700);
+    if (sentenceEl) typeReveal(sentenceEl, data.sentence, 700);
+
+    reschedule(currentIdx, correct);
+
+    setTimeout(() => {
+      goToNext();
+    }, 3000);
+  }
+
+  function disableButtons() {
+    Array.from(buttonsEl.querySelectorAll('.btn')).forEach(b => b.disabled = true);
+  }
+
+  function goToNext() {
+    const nextIdx = pullNext();
+
+    // prepara a face escondida com o próximo item
+    const data = cards[nextIdx];
+    const mode = data.seen ? 'quiz' : 'reveal';
+    hiddenFace.innerHTML = wordHTML(data, mode);
+    hiddenFace.classList.remove('feedback-correct', 'feedback-wrong');
+
+    isFlipped = !isFlipped;
+    flipper.classList.toggle('flipped', isFlipped);
+
+    setTimeout(() => {
+      // troca papéis: a face agora visível se torna currentFace
+      [currentFace, hiddenFace] = [hiddenFace, currentFace];
+      currentIdx = nextIdx;
+      renderButtons(mode, data);
+      locked = false;
+    }, 600);
+  }
+
+  // Inicialização
+  currentIdx = pullNext();
+  renderCurrent();
+</script>
+
+</body>
+</html>
