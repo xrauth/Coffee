@@ -12,7 +12,7 @@
     align-items: center;
     justify-content: center;
     background: #eceff1;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-family: "SF Mono", "Roboto Mono", "Courier New", monospace;
     -webkit-tap-highlight-color: transparent;
     gap: 2vh;
   }
@@ -61,10 +61,10 @@
     transform: rotateY(180deg);
   }
   .card.feedback-correct {
-    box-shadow: 0 0 0 4px #4caf50, 0 1.5vh 4vh rgba(0,0,0,0.12);
+    box-shadow: 0 0 0 4px #7cb885, 0 1.5vh 4vh rgba(0,0,0,0.12);
   }
   .card.feedback-wrong {
-    box-shadow: 0 0 0 4px #e05555, 0 1.5vh 4vh rgba(0,0,0,0.12);
+    box-shadow: 0 0 0 4px #d99b93, 0 1.5vh 4vh rgba(0,0,0,0.12);
   }
 
   .word {
@@ -133,12 +133,12 @@
     transform: scale(0.96);
   }
   .btn-know {
-    background: #2e7d32;
-    color: #ffffff;
+    background: #7cb885;
+    color: #1a3320;
   }
   .btn-dontknow {
-    background: #c0392b;
-    color: #ffffff;
+    background: #d99b93;
+    color: #3a1410;
   }
   .btn-option {
     background: #ffffff;
@@ -148,12 +148,12 @@
     cursor: default;
   }
   .btn-option.correct {
-    background: #4caf50;
-    color: #ffffff;
+    background: #7cb885;
+    color: #1a3320;
   }
   .btn-option.wrong {
-    background: #e05555;
-    color: #ffffff;
+    background: #d99b93;
+    color: #3a1410;
   }
   .btn-option.dim {
     opacity: 0.45;
@@ -202,13 +202,20 @@
     { word: "Harvest", translation: "Colheita", sentence: "Farmers prepare for the annual wheat harvest in autumn.", sentenceTranslation: "Os agricultores se preparam para a colheita anual de trigo no outono." }
   ];
 
-  // Gera a versão da frase com a palavra substituída por um blank (case-insensitive, primeira ocorrência)
+  // Divide a frase em: antes da palavra, o blank (mesmo tamanho da palavra), e depois da palavra
   function makeBlank(sentence, word) {
-    const blank = "_".repeat(Math.max(word.length, 4));
     const re = new RegExp(word, "i");
-    return sentence.replace(re, blank);
+    const match = sentence.match(re);
+    if (!match) return { before: sentence, blank: '_'.repeat(word.length), after: '' };
+    const start = match.index;
+    const end = start + match[0].length;
+    return {
+      before: sentence.slice(0, start),
+      blank: '_'.repeat(word.length),
+      after: sentence.slice(end)
+    };
   }
-  cards.forEach(c => { c.sentenceBlank = makeBlank(c.sentence, c.word); });
+  cards.forEach(c => { c.sentenceParts = makeBlank(c.sentence, c.word); });
 
   // Marca cada palavra como nunca vista; usaremos isso para decidir o modo do card
   cards.forEach(c => { c.seen = false; });
@@ -249,17 +256,29 @@
   }
 
   function wordHTML(data, mode) {
-    // mode: 'reveal' (mostra tudo) ou 'quiz' (esconde palavra principal; frase mostra com blank)
-    const wordText = mode === 'quiz' ? '?????' : data.word;
-    const sentenceText = mode === 'quiz' ? data.sentenceBlank : data.sentence;
-    const wordClass = mode === 'quiz' ? 'word hidden-text' : 'word';
+    // mode: 'reveal' (mostra tudo) ou 'quiz' (esconde palavra principal; frase mostra com blank isolado em span)
+    if (mode === 'quiz') {
+      const p = data.sentenceParts;
+      const sentenceHTML = `${escapeHTML(p.before)}<span id="blankEl">${p.blank}</span>${escapeHTML(p.after)}`;
+      return `
+        <div class="word hidden-text" id="wordEl">${'_'.repeat(data.word.length)}</div>
+        <div class="translation">${data.translation}</div>
+        <div class="divider"></div>
+        <div class="sentence" id="sentenceEl">${sentenceHTML}</div>
+        <div class="sentence-translation">${data.sentenceTranslation}</div>
+      `;
+    }
     return `
-      <div class="${wordClass}" id="wordEl">${wordText}</div>
+      <div class="word" id="wordEl">${data.word}</div>
       <div class="translation">${data.translation}</div>
       <div class="divider"></div>
-      <div class="sentence" id="sentenceEl">${sentenceText}</div>
+      <div class="sentence" id="sentenceEl">${data.sentence}</div>
       <div class="sentence-translation">${data.sentenceTranslation}</div>
     `;
+  }
+
+  function escapeHTML(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   let currentIdx = null; // índice (em `cards`) da palavra atualmente exibida
@@ -328,15 +347,14 @@
   }
 
   function typeReveal(el, fullText, durationMs) {
-    // anima a revelação progressiva de fullText dentro de el, preservando outros nós irmãos se houver
+    // anima a revelação progressiva de fullText dentro de el (fonte mono garante largura fixa por caractere)
     const steps = fullText.length;
     if (steps === 0) { el.textContent = fullText; return; }
     const stepTime = durationMs / steps;
     let i = 0;
-    el.textContent = '';
     const timer = setInterval(() => {
       i++;
-      el.textContent = fullText.slice(0, i) + (i < steps ? '_'.repeat(steps - i) : '');
+      el.textContent = fullText.slice(0, i) + '_'.repeat(steps - i);
       if (i >= steps) clearInterval(timer);
     }, stepTime);
   }
@@ -362,12 +380,14 @@
     // contorno de feedback no card
     currentFace.classList.add(correct ? 'feedback-correct' : 'feedback-wrong');
 
-    // animação de digitação simultânea na palavra principal e na frase (revela o blank)
+    // animação de digitação in-place, simultânea: palavra principal + apenas o blank da frase
     const wordEl = currentFace.querySelector('#wordEl');
-    const sentenceEl = currentFace.querySelector('#sentenceEl');
-    wordEl.classList.remove('hidden-text');
-    if (wordEl) typeReveal(wordEl, data.word, 700);
-    if (sentenceEl) typeReveal(sentenceEl, data.sentence, 700);
+    const blankEl = currentFace.querySelector('#blankEl');
+    if (wordEl) {
+      wordEl.classList.remove('hidden-text');
+      typeReveal(wordEl, data.word, 700);
+    }
+    if (blankEl) typeReveal(blankEl, data.word, 700);
 
     reschedule(currentIdx, correct);
 
